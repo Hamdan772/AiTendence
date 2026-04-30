@@ -1,14 +1,7 @@
 const express = require("express");
 const session = require("express-session");
 const path = require("path");
-const { connectDB } = require("../src/mongoConnection");
-const {
-  Student,
-  AttendanceSession,
-  AttendanceRecord,
-  Admin,
-  Settings
-} = require("../src/models");
+const { initDb } = require("../src/db");
 
 const createIndexRouter = require("../src/routes/index");
 const createStudentsRouter = require("../src/routes/students");
@@ -19,6 +12,7 @@ const createExportRouter = require("../src/routes/export");
 const createAuthRouter = require("../src/routes/auth");
 
 const app = express();
+const dbPromise = initDb();
 
 app.set("view engine", "ejs");
 app.set("views", path.join(__dirname, "../src/views"));
@@ -48,58 +42,25 @@ app.use((req, res, next) => {
   next();
 });
 
-let dbConnected = false;
-
-app.use(async (req, res, next) => {
-  if (!dbConnected) {
-    try {
-      await connectDB();
-      dbConnected = true;
-    } catch (err) {
-      console.error("Failed to connect to MongoDB:", err);
-      return res.status(500).render("error", {
-        title: "Database Error",
-        message: "Failed to connect to database. Please try again later."
-      });
-    }
-  }
-
-  next();
-});
-
-// MongoDB adapter for the db interface
 const db = {
-  get: async (query, params) => {
-    // Simple queries support for migration
-    if (query.includes("SELECT COUNT(*) AS count FROM students")) {
-      const count = await Student.countDocuments();
-      return { count };
-    } else if (query.includes("SELECT COUNT(*) AS count FROM attendance_sessions")) {
-      const count = await AttendanceSession.countDocuments();
-      return { count };
-    } else if (query.includes("SELECT COUNT(*) AS count FROM attendance_records")) {
-      const count = await AttendanceRecord.countDocuments();
-      return { count };
-    }
-    // Add more query patterns as needed
-    return null;
+  async get(sql, ...params) {
+    const database = await dbPromise;
+    return database.get(sql, ...params);
   },
-  all: async (query, params) => {
-    // Simple queries support
-    if (query.includes("SELECT * FROM students")) {
-      return await Student.find().sort({ name: 1 });
-    } else if (query.includes("SELECT * FROM attendance_sessions")) {
-      return await AttendanceSession.find().sort({ session_date: -1 });
-    }
-    return [];
+  async all(sql, ...params) {
+    const database = await dbPromise;
+    return database.all(sql, ...params);
   },
-  run: async (query, params) => {
-    // Handle INSERT, UPDATE, DELETE
-    return { lastID: null };
+  async run(sql, ...params) {
+    const database = await dbPromise;
+    return database.run(sql, ...params);
+  },
+  async exec(sql) {
+    const database = await dbPromise;
+    return database.exec(sql);
   }
 };
 
-// Initialize routes
 app.use("/", createIndexRouter(db));
 app.use("/students", createStudentsRouter(db));
 app.use("/attendance", createAttendanceRouter(db));

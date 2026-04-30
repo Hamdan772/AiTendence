@@ -3,7 +3,9 @@ const fs = require("fs");
 const sqlite3 = require("sqlite3");
 const { open } = require("sqlite");
 
-const dataDir = path.join(process.cwd(), "data");
+const dataDir = process.env.VERCEL
+  ? path.join("/tmp", "attendra-data")
+  : path.join(process.cwd(), "data");
 const dbPath = path.join(dataDir, "attendance.db");
 
 async function initDb() {
