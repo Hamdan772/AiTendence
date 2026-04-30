@@ -177,9 +177,14 @@ module.exports = (db) => {
 
   router.post("/:id/face", async (req, res, next) => {
     try {
+      console.log('ENROLL: incoming request for student id=', req.params.id, 'descriptor type=', typeof req.body.descriptor);
+      if (Array.isArray(req.body.descriptor)) {
+        console.log('ENROLL: descriptor length=', req.body.descriptor.length);
+      }
       const descriptor = normalizeDescriptor(req.body.descriptor);
 
       if (!descriptor) {
+        console.log('ENROLL: invalid descriptor for student', req.params.id);
         return res.status(400).json({
           ok: false,
           message: "Invalid face data. Please capture your face again."
@@ -188,6 +193,7 @@ module.exports = (db) => {
 
       const student = await db.get("SELECT id FROM students WHERE id = ?", req.params.id);
       if (!student) {
+        console.log('ENROLL: student not found', req.params.id);
         return res.status(404).json({ ok: false, message: "Student not found." });
       }
 
@@ -198,8 +204,11 @@ module.exports = (db) => {
         req.params.id
       );
 
+      console.log('ENROLL: updated student', req.params.id);
+
       return res.json({ ok: true, message: "Face enrolled successfully." });
     } catch (err) {
+      console.error('ENROLL: error', err);
       return next(err);
     }
   });
