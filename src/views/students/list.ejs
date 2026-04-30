@@ -1,0 +1,56 @@
+<%- include('../partials/header', { title }) %>
+<section class="page-head">
+  <div>
+    <h1>Students</h1>
+    <p>Track student profiles, IDs, and family contacts.</p>
+  </div>
+  <a class="button" href="/students/new">Add student</a>
+</section>
+
+<% if (message) { %>
+  <div class="notice"><%= message %></div>
+<% } %>
+
+<% if (students.length === 0) { %>
+  <div class="card">
+    <p>No students yet. Add your first student to start recording sessions.</p>
+  </div>
+<% } else { %>
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Student ID</th>
+        <th>Name</th>
+        <th>Email</th>
+        <th>Parent Email</th>
+        <th>Face Profile</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% students.forEach((student) => { %>
+        <tr>
+          <td><%= student.student_id %></td>
+          <td><%= student.name %></td>
+          <td><%= student.email || "-" %></td>
+          <td><%= student.parent_email || "-" %></td>
+          <td>
+            <% if (student.face_enrolled_at) { %>
+              <span class="pill pill-success">Enrolled</span>
+            <% } else { %>
+              <span class="pill pill-danger">Missing</span>
+            <% } %>
+          </td>
+          <td class="actions">
+            <a class="text-link" href="/students/<%= student.id %>/face">Face</a>
+            <a class="text-link" href="/students/<%= student.id %>/edit">Edit</a>
+            <form method="post" action="/students/<%= student.id %>/delete">
+              <button class="text-link danger" type="submit">Delete</button>
+            </form>
+          </td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+<% } %>
+<%- include('../partials/footer') %>

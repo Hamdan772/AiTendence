@@ -1,0 +1,24 @@
+<%- include('../partials/header', { title }) %>
+<section class="card auth-card">
+  <h1>Set admin password</h1>
+  <p>Set a strong password to secure the admin dashboard.</p>
+
+  <% if (error) { %>
+    <div class="notice warning"><%= error %></div>
+  <% } %>
+
+  <form class="form" method="post" action="/setup">
+    <label>
+      Password
+      <input type="password" name="password" required>
+    </label>
+    <label>
+      Confirm password
+      <input type="password" name="confirm" required>
+    </label>
+    <div class="form-actions">
+      <button class="button" type="submit">Save password</button>
+    </div>
+  </form>
+</section>
+<%- include('../partials/footer') %>

@@ -1,0 +1,47 @@
+<%- include('../partials/header', { title }) %>
+<section class="page-head">
+  <div>
+    <h1>Attendance records</h1>
+    <p>Latest sessions and attendance entries.</p>
+  </div>
+  <div class="hero-actions">
+    <a class="button" href="/attendance/face">Face attendance</a>
+    <a class="button ghost" href="/attendance/manual">Manual attendance</a>
+  </div>
+</section>
+
+<% if (success) { %>
+  <div class="notice">Attendance updated.</div>
+<% } %>
+
+<% if (records.length === 0) { %>
+  <div class="card">
+    <p>No attendance records yet.</p>
+  </div>
+<% } else { %>
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Date</th>
+        <th>Student</th>
+        <th>Status</th>
+        <th>Recorded at</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% records.forEach((record) => { %>
+        <tr>
+          <td><%= record.session_date %></td>
+          <td><%= record.name %> (<%= record.student_code %>)</td>
+          <td>
+            <span class="pill <%= record.status === 'present' ? 'pill-success' : 'pill-danger' %>">
+              <%= record.status %>
+            </span>
+          </td>
+          <td><%= record.recorded_at %></td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+<% } %>
+<%- include('../partials/footer') %>

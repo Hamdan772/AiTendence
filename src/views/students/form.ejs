@@ -1,0 +1,45 @@
+<%- include('../partials/header', { title }) %>
+<section class="page-head">
+  <div>
+    <h1><%= title %></h1>
+    <p>Keep the roster accurate for seamless attendance tracking.</p>
+  </div>
+  <a class="button ghost" href="/students">Back to students</a>
+</section>
+
+<% if (error) { %>
+  <div class="notice warning"><%= error %></div>
+<% } %>
+
+<form class="form" method="post" action="<%= action %>">
+  <div class="form-grid">
+    <label>
+      Student ID
+      <input type="text" name="student_id" value="<%= student.student_id %>" required>
+    </label>
+    <label>
+      Full name
+      <input type="text" name="name" value="<%= student.name %>" required>
+    </label>
+    <label>
+      Student email
+      <input type="email" name="email" value="<%= student.email || '' %>">
+    </label>
+    <label>
+      Parent email
+      <input type="email" name="parent_email" value="<%= student.parent_email || '' %>">
+    </label>
+    <label>
+      Phone number
+      <input type="text" name="phone" value="<%= student.phone || '' %>">
+    </label>
+    <label>
+      Parent phone
+      <input type="text" name="parent_phone" value="<%= student.parent_phone || '' %>">
+    </label>
+  </div>
+  <div class="form-actions">
+    <button class="button" type="submit"><%= submitLabel %></button>
+  </div>
+</form>
+<%- include('../partials/footer') %>

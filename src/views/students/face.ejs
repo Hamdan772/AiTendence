@@ -1,0 +1,168 @@
+<%- include('../partials/header', { title }) %>
+<section class="page-head">
+  <div>
+    <h1>Face enrollment</h1>
+    <p>Capture a clear front-facing photo for <strong><%= student.name %></strong> (<%= student.student_id %>).</p>
+  </div>
+  <a class="button ghost" href="/students">Back to students</a>
+</section>
+
+<% if (message) { %>
+  <div class="notice"><%= message %></div>
+<% } %>
+<% if (warning) { %>
+  <div class="notice warning"><%= warning %></div>
+<% } %>
+
+<div class="card">
+  <div class="face-grid">
+    <div class="camera-wrap">
+      <video id="faceVideo" class="camera-view" autoplay muted playsinline></video>
+      <canvas id="faceCanvas" class="camera-canvas" width="640" height="480"></canvas>
+    </div>
+    <div class="face-panel">
+      <p><strong>Enrollment status:</strong>
+        <% if (student.face_enrolled_at) { %>
+          Enrolled on <%= student.face_enrolled_at %>
+        <% } else { %>
+          Not enrolled yet
+        <% } %>
+      </p>
+      <p class="small-text">Tips: bright light, remove face covering, and keep only one face in the frame.</p>
+      <div class="face-actions">
+        <button id="captureBtn" class="button" type="button">Capture & Save Face</button>
+        <button id="retryBtn" class="button ghost" type="button">Retry Camera</button>
+      </div>
+      <div id="faceStatus" class="notice" style="display:none;"></div>
+    </div>
+  </div>
+</div>
+
+<script src="/vendor/face-api/face-api.min.js"></script>
+<script>
+  const studentId = <%- JSON.stringify(student.id) %>;
+  const videoEl = document.getElementById("faceVideo");
+  const canvasEl = document.getElementById("faceCanvas");
+  const statusEl = document.getElementById("faceStatus");
+  const captureBtn = document.getElementById("captureBtn");
+  const retryBtn = document.getElementById("retryBtn");
+
+  let modelsReady = false;
+  let cameraReady = false;
+
+  captureBtn.disabled = true;
+
+  function showStatus(message, isWarning = false) {
+    statusEl.style.display = "block";
+    statusEl.className = isWarning ? "notice warning" : "notice";
+    statusEl.textContent = message;
+  }
+
+  async function startCamera() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: false });
+      videoEl.srcObject = stream;
+      cameraReady = true;
+      return true;
+    } catch (err) {
+      showStatus(`Camera access denied or unavailable: ${err.name || "camera error"}.`, true);
+      return false;
+    }
+  }
+
+  async function loadModels() {
+    const modelUrls = [
+      "/face-models/",
+      "https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@master/weights/",
+      "https://raw.githubusercontent.com/justadudewhohacks/face-api.js/master/weights/"
+    ];
+
+    let lastError = null;
+    for (const modelUrl of modelUrls) {
+      try {
+        showStatus("Loading face model from " + modelUrl + "...");
+        console.log("Attempting to load models from:", modelUrl);
+        await Promise.all([
+          faceapi.nets.tinyFaceDetector.loadFromUri(modelUrl),
+          faceapi.nets.faceLandmark68Net.loadFromUri(modelUrl),
+          faceapi.nets.faceRecognitionNet.loadFromUri(modelUrl)
+        ]);
+        modelsReady = true;
+        captureBtn.disabled = false;
+        console.log("Models loaded successfully from:", modelUrl);
+        showStatus(`Face model loaded from ${modelUrl}.`);
+        return;
+      } catch (err) {
+        console.error("Model loading failed from " + modelUrl + ":", err);
+        showStatus(`Failed loading face model from ${modelUrl}: ${err.message || err}.`, true);
+        lastError = err;
+      }
+    }
+
+    console.error("All model loading attempts failed:", lastError);
+    throw lastError || new Error("Model load failed");
+  }
+
+  async function captureAndSave() {
+    if (!modelsReady) {
+      showStatus("Face model is still loading. Try again in a moment.", true);
+      return;
+    }
+
+    const options = new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.4 });
+    const detection = await faceapi
+      .detectSingleFace(videoEl, options)
+      .withFaceLandmarks()
+      .withFaceDescriptor();
+
+    if (!detection) {
+      showStatus("No face found. Keep your face centered and try again.", true);
+      return;
+    }
+
+    const dims = { width: videoEl.videoWidth || 640, height: videoEl.videoHeight || 480 };
+    canvasEl.width = dims.width;
+    canvasEl.height = dims.height;
+    faceapi.matchDimensions(canvasEl, dims);
+    const resized = faceapi.resizeResults(detection, dims);
+    const ctx = canvasEl.getContext("2d");
+    ctx.clearRect(0, 0, canvasEl.width, canvasEl.height);
+    faceapi.draw.drawDetections(canvasEl, resized);
+
+    const response = await fetch(`/students/${studentId}/face`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ descriptor: Array.from(detection.descriptor) })
+    });
+
+    const payload = await response.json();
+    if (!response.ok || !payload.ok) {
+      showStatus(payload.message || "Failed to save face enrollment.", true);
+      return;
+    }
+
+    showStatus("Face enrolled successfully. You can now use face attendance.");
+  }
+
+  captureBtn.addEventListener("click", () => {
+    captureAndSave().catch(() => showStatus("Could not process face data.", true));
+  });
+
+  retryBtn.addEventListener("click", () => {
+    showStatus("Reconnecting camera...");
+    startCamera().catch(() => showStatus("Failed to reconnect camera.", true));
+  });
+
+  loadModels()
+    .then(() => startCamera())
+    .then(() => {
+      if (cameraReady && modelsReady) {
+        showStatus("Camera and face model ready. Capture face when centered.");
+      }
+    })
+    .catch(() => {
+      captureBtn.disabled = true;
+      showStatus("Could not load face model. Restart server and refresh page.", true);
+    });
+</script>
+<%- include('../partials/footer') %>

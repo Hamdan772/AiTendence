@@ -1,0 +1,180 @@
+<%- include('../partials/header', { title }) %>
+<section class="page-head">
+  <div>
+    <h1>Face attendance</h1>
+    <p>Scan student faces to mark present. Remaining students stay absent for the selected session date.</p>
+  </div>
+  <a class="button ghost" href="/attendance">View records</a>
+</section>
+
+<% if (message) { %>
+  <div class="notice"><%= message %></div>
+<% } %>
+<% if (warning) { %>
+  <div class="notice warning"><%= warning %></div>
+<% } %>
+
+<div class="card">
+  <div class="face-grid">
+    <div class="camera-wrap">
+      <video id="scanVideo" class="camera-view" autoplay muted playsinline></video>
+      <canvas id="scanCanvas" class="camera-canvas" width="640" height="480"></canvas>
+    </div>
+    <div class="face-panel">
+      <label>
+        Session date
+        <input id="sessionDate" type="date" value="<%= today %>">
+      </label>
+      <p><strong>Students:</strong> <%= studentCount %></p>
+      <p><strong>Face profiles enrolled:</strong> <%= enrolledCount %></p>
+      <p class="small-text">When the first face is recognized for a date, all students are marked absent by default, then matched students are switched to present.</p>
+      <div class="face-actions">
+        <button id="scanBtn" class="button" type="button">Scan Face</button>
+        <button id="reconnectBtn" class="button ghost" type="button">Retry Camera</button>
+      </div>
+      <div id="scanStatus" class="notice" style="display:none;"></div>
+      <ul id="scanLog" class="scan-log"></ul>
+    </div>
+  </div>
+</div>
+
+<script src="/vendor/face-api/face-api.min.js"></script>
+<script>
+  const videoEl = document.getElementById("scanVideo");
+  const canvasEl = document.getElementById("scanCanvas");
+  const dateEl = document.getElementById("sessionDate");
+  const statusEl = document.getElementById("scanStatus");
+  const scanBtn = document.getElementById("scanBtn");
+  const reconnectBtn = document.getElementById("reconnectBtn");
+  const scanLog = document.getElementById("scanLog");
+
+  let modelsReady = false;
+  let cameraReady = false;
+
+  scanBtn.disabled = true;
+
+  function setStatus(message, isWarning = false) {
+    statusEl.style.display = "block";
+    statusEl.className = isWarning ? "notice warning" : "notice";
+    statusEl.textContent = message;
+  }
+
+  function appendLog(message) {
+    const item = document.createElement("li");
+    item.textContent = `${new Date().toLocaleTimeString()} - ${message}`;
+    scanLog.prepend(item);
+  }
+
+  async function startCamera() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: false });
+      videoEl.srcObject = stream;
+      cameraReady = true;
+      return true;
+    } catch (err) {
+      setStatus(`Camera access denied or unavailable: ${err.name || "camera error"}.`, true);
+      return false;
+    }
+  }
+
+  async function loadModels() {
+    const modelUrls = [
+      "/face-models/",
+      "https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@master/weights/",
+      "https://raw.githubusercontent.com/justadudewhohacks/face-api.js/master/weights/"
+    ];
+
+    let lastError = null;
+    for (const modelUrl of modelUrls) {
+      try {
+        setStatus("Loading face model from " + modelUrl + "...");
+        console.log("Attempting to load models from:", modelUrl);
+        await Promise.all([
+          faceapi.nets.tinyFaceDetector.loadFromUri(modelUrl),
+          faceapi.nets.faceLandmark68Net.loadFromUri(modelUrl),
+          faceapi.nets.faceRecognitionNet.loadFromUri(modelUrl)
+        ]);
+        modelsReady = true;
+        scanBtn.disabled = false;
+        console.log("Models loaded successfully from:", modelUrl);
+        setStatus(`Face model loaded from ${modelUrl}.`);
+        return;
+      } catch (err) {
+        console.error("Model loading failed from " + modelUrl + ":", err);
+        setStatus(`Failed loading face model from ${modelUrl}: ${err.message || err}.`, true);
+        lastError = err;
+      }
+    }
+
+    console.error("All model loading attempts failed:", lastError);
+    throw lastError || new Error("Model load failed");
+  }
+
+  async function scanFace() {
+    if (!modelsReady) {
+      setStatus("Face model is still loading. Try again in a moment.", true);
+      return;
+    }
+
+    const detection = await faceapi
+      .detectSingleFace(videoEl, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.4 }))
+      .withFaceLandmarks()
+      .withFaceDescriptor();
+
+    if (!detection) {
+      setStatus("No face detected. Keep one face centered in frame.", true);
+      return;
+    }
+
+    const dims = { width: videoEl.videoWidth || 640, height: videoEl.videoHeight || 480 };
+    canvasEl.width = dims.width;
+    canvasEl.height = dims.height;
+    faceapi.matchDimensions(canvasEl, dims);
+    const resized = faceapi.resizeResults(detection, dims);
+    const ctx = canvasEl.getContext("2d");
+    ctx.clearRect(0, 0, canvasEl.width, canvasEl.height);
+    faceapi.draw.drawDetections(canvasEl, resized);
+
+    const response = await fetch("/attendance/face/scan", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        sessionDate: dateEl.value,
+        descriptor: Array.from(detection.descriptor)
+      })
+    });
+
+    const payload = await response.json();
+    if (!response.ok || !payload.ok) {
+      setStatus(payload.message || "Face scan failed.", true);
+      appendLog(payload.message || "Face scan failed.");
+      return;
+    }
+
+    const successText = `${payload.student.name} (${payload.student.student_id}) marked present for ${payload.sessionDate}. Match distance: ${payload.distance}`;
+    setStatus(successText);
+    appendLog(successText);
+  }
+
+  scanBtn.addEventListener("click", () => {
+    scanFace().catch(() => setStatus("Could not process scan.", true));
+  });
+
+  reconnectBtn.addEventListener("click", () => {
+    setStatus("Reconnecting camera...");
+    startCamera().catch(() => setStatus("Failed to reconnect camera.", true));
+  });
+
+  loadModels()
+    .then(() => startCamera())
+    .then(() => {
+      if (cameraReady && modelsReady) {
+        setStatus("Camera and face model ready. Scan each student face one by one.");
+      }
+    })
+    .catch(() => {
+      scanBtn.disabled = true;
+      setStatus("Could not load face model. Restart server and refresh page.", true);
+    });
+</script>
+<%- include('../partials/footer') %>

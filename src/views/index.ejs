@@ -1,0 +1,45 @@
+<%- include('partials/header', { title }) %>
+<section class="hero">
+  <div>
+    <h1>Attendance command center</h1>
+    <p>Track sessions, keep rosters clean, and spot attendance risks before they grow.</p>
+    <div class="hero-actions">
+      <a class="button" href="/attendance/face">Face attendance</a>
+      <a class="button" href="/attendance/manual">Record attendance</a>
+      <a class="button ghost" href="/students/new">Add student</a>
+    </div>
+  </div>
+  <div class="hero-panel">
+    <div class="hero-metric">
+      <div class="metric-label">Students</div>
+      <div class="metric-value"><%= studentCount %></div>
+    </div>
+    <div class="hero-metric">
+      <div class="metric-label">Sessions</div>
+      <div class="metric-value"><%= sessionCount %></div>
+    </div>
+    <div class="hero-metric">
+      <div class="metric-label">Records</div>
+      <div class="metric-value"><%= recordCount %></div>
+    </div>
+  </div>
+</section>
+
+<section class="grid">
+  <div class="card">
+    <h2>Roster control</h2>
+    <p>Manage student records, IDs, and parent contacts from one dashboard.</p>
+    <a class="text-link" href="/students">Manage students</a>
+  </div>
+  <div class="card">
+    <h2>Manual attendance</h2>
+    <p>Create a session for any date and capture presence in seconds.</p>
+    <a class="text-link" href="/attendance/manual">Open manual form</a>
+  </div>
+  <div class="card">
+    <h2>Performance signals</h2>
+    <p>Visualize attendance bands and flag students below the cutoff.</p>
+    <a class="text-link" href="/analytics">View analytics</a>
+  </div>
+</section>
+<%- include('partials/footer') %>
