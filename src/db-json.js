@@ -11,12 +11,25 @@ if (!fs.existsSync(dataDir)) {
 }
 
 let cache = {
-    students: [],
+    students: [
+        {
+            id: 1,
+            student_id: "5.16",
+            name: "Thehans Mawella",
+            email: "",
+            parent_email: "",
+            phone: "",
+            parent_phone: "",
+            created_at: new Date().toISOString(),
+            face_descriptor: null,
+            face_enrolled_at: null
+        }
+    ],
     attendance_sessions: [],
     attendance_records: [],
     settings: [],
     alert_log: [],
-    nextStudentId: 1,
+    nextStudentId: 2,
     nextSessionId: 1,
     nextRecordId: 1
 };
@@ -46,7 +59,20 @@ function loadDb() {
 
 function initializeDefaults() {
     cache = {
-        students: [],
+        students: [
+            {
+                id: 1,
+                student_id: "5.16",
+                name: "Thehans Mawella",
+                email: "",
+                parent_email: "",
+                phone: "",
+                parent_phone: "",
+                created_at: new Date().toISOString(),
+                face_descriptor: null,
+                face_enrolled_at: null
+            }
+        ],
         attendance_sessions: [],
         attendance_records: [],
         settings: [
@@ -60,7 +86,7 @@ function initializeDefaults() {
             { key: "admin_password_hash", value: "" }
         ],
         alert_log: [],
-        nextStudentId: 1,
+        nextStudentId: 2,
         nextSessionId: 1,
         nextRecordId: 1
     };
