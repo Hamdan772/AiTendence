@@ -48,6 +48,25 @@ app.use((req, res, next) => {
   next();
 });
 
+let dbConnected = false;
+
+app.use(async (req, res, next) => {
+  if (!dbConnected) {
+    try {
+      await connectDB();
+      dbConnected = true;
+    } catch (err) {
+      console.error("Failed to connect to MongoDB:", err);
+      return res.status(500).render("error", {
+        title: "Database Error",
+        message: "Failed to connect to database. Please try again later."
+      });
+    }
+  }
+
+  next();
+});
+
 // MongoDB adapter for the db interface
 const db = {
   get: async (query, params) => {
@@ -102,25 +121,6 @@ app.use((err, req, res, next) => {
     title: "Server Error",
     message: "Something went wrong while processing your request."
   });
-});
-
-// Connect to MongoDB before starting
-let dbConnected = false;
-
-app.use(async (req, res, next) => {
-  if (!dbConnected) {
-    try {
-      await connectDB();
-      dbConnected = true;
-    } catch (err) {
-      console.error("Failed to connect to MongoDB:", err);
-      return res.status(500).render("error", {
-        title: "Database Error",
-        message: "Failed to connect to database. Please try again later."
-      });
-    }
-  }
-  next();
 });
 
 module.exports = app;
