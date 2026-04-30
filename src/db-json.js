@@ -11,25 +11,21 @@ if (!fs.existsSync(dataDir)) {
 }
 
 let cache = {
-    students: [
-        {
-            id: 1,
-            student_id: "5.16",
-            name: "Thehans Mawella",
-            email: "",
-            parent_email: "",
-            phone: "",
-            parent_phone: "",
-            created_at: new Date().toISOString(),
-            face_descriptor: null,
-            face_enrolled_at: null
-        }
-    ],
+    students: [],
     attendance_sessions: [],
     attendance_records: [],
-    settings: [],
+    settings: [
+        { key: "cutoff_percent", value: "75" },
+        { key: "notify_enabled", value: "0" },
+        { key: "smtp_host", value: "" },
+        { key: "smtp_port", value: "587" },
+        { key: "smtp_user", value: "" },
+        { key: "smtp_pass", value: "" },
+        { key: "smtp_from", value: "" },
+        { key: "admin_password_hash", value: "" }
+    ],
     alert_log: [],
-    nextStudentId: 2,
+    nextStudentId: 1,
     nextSessionId: 1,
     nextRecordId: 1
 };
@@ -59,20 +55,7 @@ function loadDb() {
 
 function initializeDefaults() {
     cache = {
-        students: [
-            {
-                id: 1,
-                student_id: "5.16",
-                name: "Thehans Mawella",
-                email: "",
-                parent_email: "",
-                phone: "",
-                parent_phone: "",
-                created_at: new Date().toISOString(),
-                face_descriptor: null,
-                face_enrolled_at: null
-            }
-        ],
+        students: [],
         attendance_sessions: [],
         attendance_records: [],
         settings: [
@@ -86,7 +69,7 @@ function initializeDefaults() {
             { key: "admin_password_hash", value: "" }
         ],
         alert_log: [],
-        nextStudentId: 2,
+        nextStudentId: 1,
         nextSessionId: 1,
         nextRecordId: 1
     };
@@ -99,6 +82,15 @@ function createDbAdapter() {
         get: async (sql, ...params) => {
             if (sql.includes("SELECT COUNT(*)")) {
                 if (sql.includes("FROM students")) {
+                    if (sql.includes("face_descriptor") && sql.includes("WHERE face_descriptor IS NOT NULL")) {
+                        const count = cache.students.filter((s) => {
+                            if (typeof s.face_descriptor !== "string") {
+                                return false;
+                            }
+                            return s.face_descriptor.trim() !== "";
+                        }).length;
+                        return { count };
+                    }
                     return { count: cache.students.length };
                 }
                 if (sql.includes("FROM attendance_sessions")) {
@@ -132,12 +124,24 @@ function createDbAdapter() {
         },
 
         all: async (sql, ...params) => {
-            if (sql.includes("SELECT") && sql.includes("FROM students") && !sql.includes("LEFT JOIN")) {
-                return cache.students.sort((a, b) => a.name.localeCompare(b.name));
+            if (sql.includes("face_descriptor") && sql.includes("WHERE face_descriptor IS NOT NULL")) {
+                return cache.students
+                    .filter((s) => {
+                        if (typeof s.face_descriptor !== "string") {
+                            return false;
+                        }
+                        return s.face_descriptor.trim() !== "";
+                    })
+                    .map((s) => ({
+                        id: s.id,
+                        name: s.name,
+                        student_id: s.student_id,
+                        face_descriptor: s.face_descriptor
+                    }));
             }
 
-            if (sql.includes("face_descriptor") && sql.includes("WHERE face_descriptor IS NOT NULL")) {
-                return cache.students.filter(s => s.face_descriptor);
+            if (sql.includes("SELECT") && sql.includes("FROM students") && !sql.includes("LEFT JOIN")) {
+                return cache.students.sort((a, b) => a.name.localeCompare(b.name));
             }
 
             if (sql.includes("FROM attendance_records ar") && sql.includes("JOIN students")) {
@@ -207,6 +211,16 @@ function createDbAdapter() {
                 return { lastID: student.id };
             }
 
+            if (sql.includes("UPDATE students SET face_descriptor")) {
+                const student = cache.students.find(s => s.id === parseInt(params[2]));
+                if (student) {
+                    student.face_descriptor = params[0];
+                    student.face_enrolled_at = params[1];
+                    saveDb();
+                }
+                return { changes: student ? 1 : 0 };
+            }
+
             if (sql.includes("UPDATE students") && sql.includes("WHERE id")) {
                 const student = cache.students.find(s => s.id === parseInt(params[6]));
                 if (student) {
@@ -218,22 +232,12 @@ function createDbAdapter() {
                     student.parent_phone = params[5];
                     saveDb();
                 }
-                return { changes: 1 };
+                return { changes: student ? 1 : 0 };
             }
 
             if (sql.includes("DELETE FROM students")) {
                 cache.students = cache.students.filter(s => s.id !== parseInt(params[0]));
                 saveDb();
-                return { changes: 1 };
-            }
-
-            if (sql.includes("UPDATE students SET face_descriptor")) {
-                const student = cache.students.find(s => s.id === parseInt(params[2]));
-                if (student) {
-                    student.face_descriptor = params[0];
-                    student.face_enrolled_at = params[1];
-                    saveDb();
-                }
                 return { changes: 1 };
             }
 
@@ -249,19 +253,52 @@ function createDbAdapter() {
             }
 
             if (sql.includes("INSERT INTO attendance_records")) {
+                if (sql.includes("SELECT ?, s.id, 'absent', ?")) {
+                    const sessionId = params[0];
+                    const recordedAt = params[1];
+
+                    for (const student of cache.students) {
+                        const existing = cache.attendance_records.find(
+                            (r) => r.session_id === sessionId && r.student_id === student.id
+                        );
+                        if (!existing) {
+                            cache.attendance_records.push({
+                                id: cache.nextRecordId++,
+                                session_id: sessionId,
+                                student_id: student.id,
+                                status: "absent",
+                                recorded_at: recordedAt
+                            });
+                        }
+                    }
+
+                    saveDb();
+                    return { changes: 1 };
+                }
+
+                let sessionId = params[0];
+                let studentId = params[1];
+                let status = params[2];
+                let recordedAt = params[3];
+
+                if (sql.includes("VALUES (?, ?, 'present', ?)")) {
+                    status = "present";
+                    recordedAt = params[2];
+                }
+
                 const existing = cache.attendance_records.find(
-                    r => r.session_id === params[0] && r.student_id === params[1]
+                    r => r.session_id === sessionId && r.student_id === studentId
                 );
                 if (existing) {
-                    existing.status = params[2];
-                    existing.recorded_at = params[3];
+                    existing.status = status;
+                    existing.recorded_at = recordedAt;
                 } else {
                     cache.attendance_records.push({
                         id: cache.nextRecordId++,
-                        session_id: params[0],
-                        student_id: params[1],
-                        status: params[2],
-                        recorded_at: params[3]
+                        session_id: sessionId,
+                        student_id: studentId,
+                        status,
+                        recorded_at: recordedAt
                     });
                 }
                 saveDb();
