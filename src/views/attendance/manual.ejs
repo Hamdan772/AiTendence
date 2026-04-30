@@ -1,0 +1,54 @@
+<%- include('../partials/header', { title }) %>
+<section class="page-head">
+  <div>
+    <h1>Manual attendance</h1>
+    <p>Each date is treated as a session. One record per student per session.</p>
+  </div>
+  <div class="hero-actions">
+    <a class="button" href="/attendance/face">Face attendance</a>
+    <a class="button ghost" href="/attendance">View records</a>
+  </div>
+</section>
+
+<% if (success) { %>
+  <div class="notice">Attendance recorded successfully.</div>
+<% } %>
+<% if (message) { %>
+  <div class="notice warning"><%= message %></div>
+<% } %>
+
+<% if (students.length === 0) { %>
+  <div class="card">
+    <p>Add students before recording attendance.</p>
+    <a class="button" href="/students/new">Add student</a>
+  </div>
+<% } else { %>
+  <form class="form" method="post" action="/attendance/manual">
+    <div class="form-grid">
+      <label>
+        Student
+        <select name="studentId" required>
+          <option value="">Select student</option>
+          <% students.forEach((student) => { %>
+            <option value="<%= student.id %>"><%= student.name %> (<%= student.student_id %>)</option>
+          <% }) %>
+        </select>
+      </label>
+      <label>
+        Session date
+        <input type="date" name="sessionDate" value="<%= today %>" required>
+      </label>
+      <label>
+        Status
+        <select name="status" required>
+          <option value="present">Present</option>
+          <option value="absent">Absent</option>
+        </select>
+      </label>
+    </div>
+    <div class="form-actions">
+      <button class="button" type="submit">Save attendance</button>
+    </div>
+  </form>
+<% } %>
+<%- include('../partials/footer') %>

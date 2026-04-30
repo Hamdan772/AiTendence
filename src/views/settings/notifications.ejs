@@ -1,0 +1,58 @@
+<%- include('../partials/header', { title }) %>
+<section class="page-head">
+  <div>
+    <h1>Notifications and cutoff</h1>
+    <p>Configure the cutoff threshold and email alerts.</p>
+  </div>
+</section>
+
+<% if (message) { %>
+  <div class="notice"><%= message %></div>
+<% } %>
+
+<form class="form" method="post" action="/settings/notifications">
+  <section class="card">
+    <h2>Cutoff threshold</h2>
+    <div class="form-grid">
+      <label>
+        Cutoff percentage
+        <input type="number" name="cutoff_percent" min="0" max="100" step="1" value="<%= cutoffPercent %>" required>
+      </label>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>SMTP alerts</h2>
+    <div class="form-grid">
+      <label class="checkbox">
+        <input type="checkbox" name="notify_enabled" <%= settings.enabled ? 'checked' : '' %>>
+        Enable alert emails
+      </label>
+      <label>
+        SMTP host
+        <input type="text" name="smtp_host" value="<%= settings.host %>">
+      </label>
+      <label>
+        SMTP port
+        <input type="number" name="smtp_port" value="<%= settings.port %>">
+      </label>
+      <label>
+        SMTP username
+        <input type="text" name="smtp_user" value="<%= settings.user %>">
+      </label>
+      <label>
+        SMTP password
+        <input type="password" name="smtp_pass" value="<%= settings.pass %>">
+      </label>
+      <label>
+        From address
+        <input type="email" name="smtp_from" value="<%= settings.from %>">
+      </label>
+    </div>
+  </section>
+
+  <div class="form-actions">
+    <button class="button" type="submit">Save settings</button>
+  </div>
+</form>
+<%- include('../partials/footer') %>
