@@ -16,9 +16,15 @@
 
 <div class="card">
   <div class="face-grid">
-    <div class="camera-wrap">
-      <video id="faceVideo" class="camera-view" autoplay muted playsinline></video>
-      <canvas id="faceCanvas" class="camera-canvas" width="640" height="480"></canvas>
+    <div class="camera-shell">
+      <div class="camera-head">
+        <span class="eyebrow">Enrollment camera</span>
+        <strong>Frame the student before saving the descriptor</strong>
+      </div>
+      <div class="camera-wrap">
+        <video id="faceVideo" class="camera-view" autoplay muted playsinline></video>
+        <canvas id="faceCanvas" class="camera-canvas" width="640" height="480"></canvas>
+      </div>
     </div>
     <div class="face-panel">
       <p><strong>Enrollment status:</strong>
@@ -49,8 +55,13 @@
 
   let modelsReady = false;
   let cameraReady = false;
+  let videoReady = false;
 
   captureBtn.disabled = true;
+
+  function refreshControls() {
+    captureBtn.disabled = !(modelsReady && cameraReady && videoReady);
+  }
 
   function showStatus(message, isWarning = false) {
     statusEl.style.display = "block";
@@ -62,7 +73,18 @@
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: false });
       videoEl.srcObject = stream;
+      await videoEl.play();
+      await new Promise((resolve) => {
+        if (videoEl.readyState >= 2 && videoEl.videoWidth > 0) {
+          resolve();
+          return;
+        }
+
+        videoEl.onloadedmetadata = () => resolve();
+      });
+      videoReady = true;
       cameraReady = true;
+      refreshControls();
       return true;
     } catch (err) {
       showStatus(`Camera access denied or unavailable: ${err.name || "camera error"}.`, true);
@@ -88,7 +110,7 @@
           faceapi.nets.faceRecognitionNet.loadFromUri(modelUrl)
         ]);
         modelsReady = true;
-        captureBtn.disabled = false;
+        refreshControls();
         console.log("Models loaded successfully from:", modelUrl);
         showStatus(`Face model loaded from ${modelUrl}.`);
         return;
@@ -104,12 +126,12 @@
   }
 
   async function captureAndSave() {
-    if (!modelsReady) {
+    if (!(modelsReady && cameraReady && videoReady)) {
       showStatus("Face model is still loading. Try again in a moment.", true);
       return;
     }
 
-    const options = new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.4 });
+    const options = new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.35 });
     const detection = await faceapi
       .detectSingleFace(videoEl, options)
       .withFaceLandmarks()
@@ -158,6 +180,7 @@
     .then(() => {
       if (cameraReady && modelsReady) {
         showStatus("Camera and face model ready. Capture face when centered.");
+        refreshControls();
       }
     })
     .catch(() => {
